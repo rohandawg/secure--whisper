@@ -133,6 +133,20 @@ const SettingsPage = () => {
                 Change Password
               </Button>
             </div>
+            <div>
+              <Button 
+                variant="outline" 
+                className="w-full border-border hover:bg-muted text-destructive hover:text-destructive"
+                onClick={() => {
+                  localStorage.removeItem("token");
+                  localStorage.removeItem("user");
+                  localStorage.removeItem("accounts");
+                  navigate("/");
+                }}
+              >
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
 

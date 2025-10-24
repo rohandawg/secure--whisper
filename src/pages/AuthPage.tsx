@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -15,7 +16,7 @@ const AuthPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!isLogin && password !== confirmPassword) {
       toast({
         title: "Error",
@@ -25,20 +26,58 @@ const AuthPage = () => {
       return;
     }
 
-    // Simulate successful auth
-    toast({
-      title: isLogin ? "Welcome back!" : "Account created!",
-      description: isLogin ? "You've successfully logged in" : "Welcome to SecureChat",
-    });
-    
-    navigate("/onboarding");
+    // Call backend login/register
+    (async () => {
+      try {
+        const endpoint = isLogin ? "/api/login" : "/api/register";
+        const body: any = isLogin
+          ? { usernameOrEmail: email, password }
+          : { username: username || email.split("@")[0], email, password };
+
+        const resp = await fetch("http://localhost:4000" + endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          toast({ title: "Error", description: data.error || "Auth failed", variant: "destructive" });
+          return;
+        }
+
+        // store account in accounts list (multi-account support)
+        try {
+          const raw = localStorage.getItem("accounts") || "[]";
+          const accounts = JSON.parse(raw);
+          const existing = accounts.findIndex((a: any) => a.user?.id === data.user?.id);
+          if (existing > -1) {
+            accounts[existing] = { user: data.user, token: data.token };
+          } else {
+            accounts.unshift({ user: data.user, token: data.token });
+          }
+          localStorage.setItem("accounts", JSON.stringify(accounts));
+        } catch (err) {
+          // fallback single account
+          localStorage.setItem("accounts", JSON.stringify([{ user: data.user, token: data.token }]));
+        }
+
+        // set active account token/user
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        toast({ title: isLogin ? "Welcome back!" : "Account created!", description: isLogin ? "You've successfully logged in" : "Welcome to SecureChat" });
+        navigate("/chat");
+      } catch (err) {
+        toast({ title: "Error", description: "Network error", variant: "destructive" });
+      }
+    })();
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
       {/* Animated background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-accent/10 animate-pulse-glow"></div>
-      
+
       <div className="w-full max-w-md relative z-10 animate-scale-in">
         {/* Logo/Branding */}
         <div className="text-center mb-8">
@@ -79,14 +118,30 @@ const AuthPage = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-foreground">Username</Label>
+                <div className="relative">
+                  <Input
+                    id="username"
+                    placeholder="your-username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="pl-3 bg-input border-border focus:border-primary"
+                    required={!isLogin}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-foreground">Email</Label>
+              <Label htmlFor="email" className="text-foreground">{isLogin ? "Username or Email" : "Email"}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="you@example.com"
+                  type={isLogin ? "text" : "email"}
+                  placeholder={isLogin ? "username or you@example.com" : "you@example.com"}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 bg-input border-border focus:border-primary"
