@@ -1,73 +1,68 @@
-# Welcome to your Lovable project
 
-## Project info
 
-**URL**: https://lovable.dev/projects/fdffd7f3-a5b4-4662-9ceb-b033011e7524
+# SecureChat (local dev)
 
-## How can I edit this code?
+This is a Vite + React frontend with a small Express + SQLite backend (in `server/`).
 
-There are several ways of editing your application.
+## Run locally (PowerShell)
 
-**Use Lovable**
+Follow these commands in two separate terminals: one for the frontend and one for the backend.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/fdffd7f3-a5b4-4662-9ceb-b033011e7524) and start prompting.
+1) Frontend (project root)
 
-Changes made via Lovable will be committed automatically to this repo.
+Install dependencies (run once):
+```powershell
+cd 'C:\Users\Rohan\OneDrive\Desktop\projects\secure-whisper-22'
+npm install
+```
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Start the dev frontend (Vite):
+```powershell
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Vite typically serves at http://localhost:5173.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+2) Backend (separate terminal)
 
-**Use GitHub Codespaces**
+Install backend deps and start:
+```powershell
+cd 'C:\Users\Rohan\OneDrive\Desktop\projects\secure-whisper-22\server'
+npm install
+npm start
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+By default the backend listens on http://localhost:4000.
 
-## What technologies are used for this project?
+3) Optional: set environment variables for the backend (PowerShell)
 
-This project is built with:
+You can set a JWT secret and a 32-byte encryption key for AES-256-GCM before starting the backend:
+```powershell
+$env:JWT_SECRET = 'your_jwt_secret_here'
+$env:ENCRYPTION_KEY = '32_byte_secret_key_here___________'
+npm start
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Or create a `server/.env` file with:
+```
+JWT_SECRET=your_jwt_secret_here
+ENCRYPTION_KEY=your_32_byte_key_here
+PORT=4000
+```
 
-## How can I deploy this project?
+4) Quick health check (PowerShell)
+```powershell
+Invoke-RestMethod 'http://localhost:4000/api/health'
+```
 
-Simply open [Lovable](https://lovable.dev/projects/fdffd7f3-a5b4-4662-9ceb-b033011e7524) and click on Share -> Publish.
+Expected response:
+```json
+{ "ok": true }
+```
 
-## Can I connect a custom domain to my Lovable project?
+Notes
+- Frontend posts auth requests to `http://localhost:4000/api/*` (see `src/pages/AuthPage.tsx`). Both servers must be running for full functionality.
+- If you have issues starting the backend on Windows, use `npm start` (preferred) — the `dev` script uses a POSIX env assignment which may not work directly in PowerShell.
+- If the backend fails to start, check `server/data.db` permissions and the console logs in the backend terminal.
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+If you'd like, I can add a short `README` run snippet or start both servers for you and debug any errors — tell me which you prefer.

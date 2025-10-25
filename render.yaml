@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: securechat-backend
+    env: node
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: PORT
+        value: 4000
