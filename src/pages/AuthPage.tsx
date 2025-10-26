@@ -34,7 +34,8 @@ const AuthPage = () => {
           ? { usernameOrEmail: email, password }
           : { username: username || email.split("@")[0], email, password };
 
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+        const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:4000";
+        console.log('Attempting auth request to:', API_URL + endpoint);
         const resp = await fetch(API_URL + endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

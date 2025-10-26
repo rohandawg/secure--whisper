@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { MongoClient, ObjectId } from "mongodb";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
@@ -45,6 +46,24 @@ function decrypt(dataBase64, ivBase64) {
 async function main() {
   const db = await getDb();
 
+  // Initialize SQLite database
+  try {
+    // Create users table if it doesn't exist
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+      )
+    `);
+    console.log('SQLite initialized: users table ready');
+  } catch (err) {
+    console.error("Database initialization error:", err);
+    process.exit(1);
+  }
+
   // Run a safe migration: ensure `email` column exists on users table
   try {
     const info = await db.all(`PRAGMA table_info(users);`);
@@ -58,7 +77,7 @@ async function main() {
 
   const app = express();
   app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: true, // Allow all origins in development
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -84,11 +103,19 @@ async function main() {
     if (!username || !password) return res.status(400).json({ error: "username and password required" });
     const hash = await bcrypt.hash(password, 10);
     try {
-      const result = await db.run("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)", username, email || null, hash);
+      console.log('Attempting registration:', { username, email });
+      const result = await db.run(
+        "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+        username,
+        email || null,
+        hash
+      );
+      console.log('Registration successful:', { username, id: result.lastID });
       const user = { id: result.lastID, username, email: email || null };
       const token = jwt.sign(user, JWT_SECRET);
       res.json({ user, token });
     } catch (err) {
+      console.error("Register error:", err);
       res.status(400).json({ error: "Username or email already exists" });
     }
   });
@@ -97,13 +124,19 @@ async function main() {
     const { username, usernameOrEmail, password } = req.body || {};
     const identifier = usernameOrEmail || username;
     if (!identifier || !password) return res.status(400).json({ error: "username/email and password required" });
-    const row = await db.get("SELECT * FROM users WHERE username = ? OR email = ?", identifier, identifier);
-    if (!row) return res.status(400).json({ error: "Invalid credentials" });
-    const ok = await bcrypt.compare(password, row.password_hash);
-    if (!ok) return res.status(400).json({ error: "Invalid credentials" });
-    const user = { id: row.id, username: row.username, email: row.email };
-    const token = jwt.sign(user, JWT_SECRET);
-    res.json({ user, token });
+    try {
+      console.log('Login attempt:', { identifier });
+      const row = await db.get("SELECT * FROM users WHERE username = ? OR email = ?", identifier, identifier);
+      if (!row) return res.status(400).json({ error: "Invalid credentials" });
+      const ok = await bcrypt.compare(password, row.password_hash);
+      if (!ok) return res.status(400).json({ error: "Invalid credentials" });
+      const user = { id: row.id, username: row.username, email: row.email };
+      const token = jwt.sign(user, JWT_SECRET);
+      res.json({ user, token });
+    } catch (err) {
+      console.error("Login error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
 
   // Send message (body: { chatId, content, encrypt: boolean })
@@ -242,11 +275,17 @@ async function main() {
     ws.on("close", () => subs.delete(ws));
   });
 
-  server.listen(PORT, () => {
-    console.log(`Backend API + WS server listening on http://localhost:${PORT}`);
+  await new Promise((resolve) => {
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`Backend API + WS server listening on http://0.0.0.0:${PORT}`);
+      resolve();
+    });
   });
+  
+  return server; // Return server for cleanup
 }
 
+// Start the server
 main().catch(err => {
   console.error(err);
   process.exit(1);
