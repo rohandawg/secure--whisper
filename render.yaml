@@ -17,10 +17,9 @@ services:
           name: securechat-db
           property: connectionString
   
-  # Frontend Web Service
-  - type: web
+  # Frontend Static Site
+  - type: static
     name: securechat-frontend
-    env: node
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     envVars:
