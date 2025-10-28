@@ -17,11 +17,12 @@ services:
           name: securechat-db
           property: connectionString
   
-  # Frontend Static Site
-  - type: staticSite
+  # Frontend Web Service
+  - type: web
     name: securechat-frontend
+    env: node
     buildCommand: npm install && npm run build
-    publishPath: ./dist
+    startCommand: npx serve -s dist -l 10000
     envVars:
       - key: VITE_API_URL
         fromService:
