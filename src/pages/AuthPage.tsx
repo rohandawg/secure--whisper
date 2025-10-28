@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Shield, Lock, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { API_URL } from "@/lib/api";
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -34,7 +35,6 @@ const AuthPage = () => {
           ? { usernameOrEmail: email, password }
           : { username: username || email.split("@")[0], email, password };
 
-        const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:4000";
         console.log('Attempting auth request to:', API_URL + endpoint);
         const resp = await fetch(API_URL + endpoint, {
           method: "POST",

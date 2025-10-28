@@ -4,6 +4,22 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Send,
   Paperclip,
   Smile,
@@ -13,9 +29,11 @@ import {
   Shield,
   MoreVertical,
   Search,
+  Trash2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { API_URL, WS_URL } from "@/lib/api";
 
 interface Contact {
   id: string;
@@ -69,10 +87,18 @@ const ChatPage = () => {
   }, [token, currentUser, navigate]);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const currentChatIdRef = useRef<string | null>(null);
   const [addingUsername, setAddingUsername] = useState("");
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [searchResult, setSearchResult] = useState<{ id: string; username: string } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  
+  // Update ref whenever currentChatId changes
+  useEffect(() => {
+    currentChatIdRef.current = currentChatId;
+  }, [currentChatId]);
 
   const getStatusColor = (status: Contact["status"]) => {
     switch (status) {
@@ -85,15 +111,18 @@ const ChatPage = () => {
     }
   };
 
-  function makeChatId(a: number, b: number) {
-    const [min, max] = a < b ? [a, b] : [b, a];
+  function makeChatId(a: string | number, b: string | number) {
+    const aStr = String(a);
+    const bStr = String(b);
+    // Sort alphabetically to ensure consistent chatId regardless of order
+    const [min, max] = aStr < bStr ? [aStr, bStr] : [bStr, aStr];
     return `chat_${min}_${max}`;
   }
 
   async function fetchFriends() {
     if (!token) return;
     try {
-      const resp = await fetch("http://localhost:4000/api/friends", { headers: { Authorization: `Bearer ${token}` } });
+      const resp = await fetch(`${API_URL}/api/friends`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await resp.json();
       if (resp.ok) {
         const mapped = data.friends.map((f: any) => ({ id: String(f.id), name: f.username }));
@@ -108,12 +137,12 @@ const ChatPage = () => {
   async function fetchMessagesFor(chatId: string) {
     if (!token) return;
     try {
-      const resp = await fetch(`http://localhost:4000/api/messages?chatId=${encodeURIComponent(chatId)}`, { headers: { Authorization: `Bearer ${token}` } });
+      const resp = await fetch(`${API_URL}/api/messages?chatId=${encodeURIComponent(chatId)}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await resp.json();
       if (resp.ok) {
         const mapped = data.messages.map((m: any) => ({
           id: String(m.id),
-          sender: m.sender_id === (currentUser?.id ?? -1) ? "me" : "them",
+          sender: String(m.sender_id) === String(currentUser?.id ?? -1) ? "me" : "them",
           content: m.content,
           timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           encrypted: true,
@@ -121,25 +150,28 @@ const ChatPage = () => {
         setMessages(mapped);
       }
     } catch (err) {
-      // ignore
+      console.error('Fetch messages error:', err);
     }
   }
 
-  // create/recreate WS when token/currentUser changes
+  // create WS connection only once when token is available
   useEffect(() => {
-    // close previous
-    if (wsRef.current) {
-      try { wsRef.current.close(); } catch {}
-      wsRef.current = null;
-    }
-
     if (!token) return;
 
-    const ws = new WebSocket("ws://localhost:4000");
+    // Only create if not already exists
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      return;
+    }
+
+    const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      // optionally send auth if your WS server supports it (not implemented here)
+      console.log('WebSocket connected');
+      // Subscribe to current chat if one is selected (use ref for latest value)
+      if (currentChatIdRef.current && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "subscribe", chatId: currentChatIdRef.current }));
+      }
     };
 
     ws.onmessage = (ev) => {
@@ -147,34 +179,54 @@ const ChatPage = () => {
         const payload = JSON.parse(ev.data);
         if (payload.type === "message" && payload.message) {
           const msg = payload.message;
-          if (msg.chat_id === currentChatId) {
-            setMessages((m) => [
-              ...m,
-              {
-                id: String(msg.id),
-                sender: msg.sender_id === (currentUser?.id ?? -1) ? "me" : "them",
-                content: msg.content,
-                timestamp: new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                encrypted: true,
-              },
-            ]);
+          // Check if this message is for the currently active chat (use ref for latest value)
+          if (msg.chat_id === currentChatIdRef.current) {
+            console.log('Received message for current chat:', msg.chat_id, 'Message ID:', msg.id);
+            setMessages((m) => {
+              // Check if message already exists to prevent duplicates
+              if (m.some(existingMsg => existingMsg.id === String(msg.id))) {
+                console.log('Duplicate message detected, skipping:', msg.id);
+                return m;
+              }
+              console.log('Adding new message:', msg.id);
+              return [
+                ...m,
+                {
+                  id: String(msg.id),
+                  sender: String(msg.sender_id) === String(currentUser?.id ?? -1) ? "me" : "them",
+                  content: msg.content,
+                  timestamp: new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  encrypted: true,
+                },
+              ];
+            });
+          } else {
+            console.log('Message for different chat:', msg.chat_id, 'Current chat:', currentChatIdRef.current);
           }
         }
       } catch (err) {
-        // ignore
+        console.error('WebSocket message error:', err);
       }
     };
 
     ws.onclose = () => {
+      console.log('WebSocket disconnected');
       wsRef.current = null;
     };
 
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
     return () => {
-      try { ws.close(); } catch {}
-      wsRef.current = null;
+      // Only close if component unmounts or token changes
+      if (wsRef.current) {
+        try { wsRef.current.close(); } catch {}
+        wsRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, currentUser, currentChatId]);
+  }, [token]);
 
   useEffect(() => {
     // load friends for active account when page loads or account changes
@@ -185,24 +237,46 @@ const ChatPage = () => {
   // subscribe to chat when selectedContact changes
   useEffect(() => {
     if (!selectedContact || !currentUser) return;
-    const chatId = makeChatId(Number(currentUser.id), Number(selectedContact.id));
+    
+    const chatId = makeChatId(currentUser.id, selectedContact.id);
+    console.log('Creating chat with IDs:', currentUser.id, selectedContact.id, 'ChatID:', chatId);
+    
+    // Store previous chat ID
+    const previousChatId = currentChatIdRef.current;
+    
+    // Clear previous messages immediately to avoid showing wrong chat
+    setMessages([]);
     setCurrentChatId(chatId);
+    
+    // Fetch messages for the new chat
     fetchMessagesFor(chatId);
 
-    // subscribe via ws
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "subscribe", chatId }));
-    } else {
-      // try later when open
-      const t = setTimeout(() => {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ type: "subscribe", chatId }));
+    // Subscribe/unsubscribe via ws - wait for connection to be ready
+    const subscribeToChat = () => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        // Unsubscribe from previous chat if exists
+        if (previousChatId && previousChatId !== chatId) {
+          wsRef.current.send(JSON.stringify({ type: "unsubscribe", chatId: previousChatId }));
+          console.log('Unsubscribed from previous chat:', previousChatId);
         }
-      }, 500);
-      return () => clearTimeout(t);
-    }
+        // Subscribe to new chat
+        wsRef.current.send(JSON.stringify({ type: "subscribe", chatId }));
+        console.log('Subscribed to new chat:', chatId);
+      } else {
+        // try again after a short delay
+        setTimeout(subscribeToChat, 100);
+      }
+    };
+
+    subscribeToChat();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedContact, currentUser]);
+
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,7 +288,7 @@ const ChatPage = () => {
           toast({ title: "Error", description: "No chat selected", variant: "destructive" });
           return;
         }
-        const resp = await fetch(`http://localhost:4000/api/messages`, {
+        const resp = await fetch(`${API_URL}/api/messages`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -227,16 +301,8 @@ const ChatPage = () => {
           toast({ title: "Error", description: data.error || "Failed to send", variant: "destructive" });
           return;
         }
-        setMessages((m) => [
-          ...m,
-          {
-            id: String(data.message.id),
-            sender: "me",
-            content: data.message.content,
-            timestamp: new Date(data.message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            encrypted: true,
-          },
-        ]);
+        // Don't add message here - let WebSocket handle it to avoid duplicates
+        // Just clear the input
         setMessage("");
       } catch (err) {
         toast({ title: "Error", description: "Network error", variant: "destructive" });
@@ -254,7 +320,7 @@ const ChatPage = () => {
     setIsSearching(true);
     try {
       const searchResp = await fetch(
-        `http://localhost:4000/api/users/search?q=${encodeURIComponent(addingUsername.trim())}`,
+        `${API_URL}/api/users/search?q=${encodeURIComponent(addingUsername.trim())}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -301,7 +367,7 @@ const ChatPage = () => {
     if (!searchResult) return;
     
     try {
-      const resp = await fetch("http://localhost:4000/api/friends/add", {
+      const resp = await fetch(`${API_URL}/api/friends/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ identifier: searchResult.username }),
@@ -323,6 +389,33 @@ const ChatPage = () => {
       setAddingUsername("");
       setSearchResult(null);
       toast({ title: "Friend added", description: `${newFriend.name} added` });
+    } catch (err) {
+      toast({ title: "Error", description: "Network error", variant: "destructive" });
+    }
+  }
+
+  async function handleClearChat() {
+    if (!currentChatId) return;
+    
+    try {
+      const resp = await fetch(`${API_URL}/api/messages/clear`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ chatId: currentChatId }),
+      });
+
+      if (!resp.ok) {
+        const data = await resp.json();
+        toast({ title: "Error", description: data.error || "Failed to clear chat", variant: "destructive" });
+        return;
+      }
+
+      setMessages([]);
+      setShowClearDialog(false);
+      toast({ title: "Chat cleared", description: "All messages have been removed" });
     } catch (err) {
       toast({ title: "Error", description: "Network error", variant: "destructive" });
     }
@@ -506,11 +599,39 @@ const ChatPage = () => {
               <Shield className="w-3 h-3" />
               Encrypted
             </Badge>
-            <Button variant="ghost" size="icon" className="hover:bg-muted">
-              <MoreVertical className="w-5 h-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="hover:bg-muted">
+                  <MoreVertical className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowClearDialog(true)} className="text-destructive">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Clear Chat
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
+
+        {/* Clear Chat Confirmation Dialog */}
+        <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear Chat</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to clear all messages in this chat? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleClearChat} className="bg-destructive text-destructive-foreground">
+                Clear Chat
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background/50">
@@ -536,6 +657,7 @@ const ChatPage = () => {
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Message Input */}

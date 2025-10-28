@@ -1,8 +1,33 @@
 
 
-# SecureChat (local dev)
+# SecureChat - End-to-End Encrypted Messaging
 
-This is a Vite + React frontend with a small Express + SQLite backend (in `server/`).
+SecureChat is a modern, secure messaging application built with React and Express. Features include:
+- 🔐 End-to-end encryption (AES-256-GCM)
+- 🌐 Real-time messaging via WebSockets
+- 👥 Friend management
+- 🎨 Modern UI with shadcn/ui components
+- 📱 Responsive design
+
+## Tech Stack
+
+**Frontend:**
+- React + TypeScript + Vite
+- Tailwind CSS + shadcn/ui
+- React Router
+- WebSocket client
+
+**Backend:**
+- Express.js + Node.js
+- MongoDB + Mongoose
+- JWT authentication
+- WebSocket server
+
+## Quick Start
+
+### Local Development
+
+This requires MongoDB to be running locally or on a cloud instance.
 
 ## Run locally (PowerShell)
 
@@ -60,9 +85,63 @@ Expected response:
 { "ok": true }
 ```
 
-Notes
-- Frontend posts auth requests to `http://localhost:4000/api/*` (see `src/pages/AuthPage.tsx`). Both servers must be running for full functionality.
-- If you have issues starting the backend on Windows, use `npm start` (preferred) — the `dev` script uses a POSIX env assignment which may not work directly in PowerShell.
-- If the backend fails to start, check `server/data.db` permissions and the console logs in the backend terminal.
+Notes:
+- Frontend runs on http://localhost:8080 and backend on http://localhost:4000
+- Both servers must be running for full functionality
+- MongoDB must be running (local or cloud)
+- WebSocket connections are required for real-time messaging
 
-If you'd like, I can add a short `README` run snippet or start both servers for you and debug any errors — tell me which you prefer.
+## Deployment
+
+### Deploy to Render.com
+
+1. Push your code to GitHub
+2. Connect your repository to Render
+3. Use the provided `render.yaml` for automatic setup:
+   - Backend service with MongoDB
+   - Frontend static site
+   - Automatic environment variable configuration
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
+
+### Environment Variables
+
+#### Frontend
+```bash
+VITE_API_URL=https://your-backend.onrender.com
+```
+
+#### Backend
+```bash
+JWT_SECRET=your-jwt-secret
+ENCRYPTION_KEY=your-32-byte-encryption-key
+PORT=4000
+MONGODB_URI=mongodb://...
+```
+
+## Features
+
+- ✅ User authentication (register/login)
+- ✅ End-to-end encrypted messaging
+- ✅ Real-time messaging via WebSockets
+- ✅ Friend management
+- ✅ Search and add friends
+- ✅ Modern, responsive UI
+
+## Project Structure
+
+```
+├── src/                # Frontend React app
+│   ├── pages/         # Page components
+│   ├── components/    # UI components
+│   ├── lib/          # Utilities (API config)
+│   └── hooks/        # React hooks
+├── server/           # Backend Express server
+│   ├── models/       # MongoDB models
+│   └── index.js      # Server entry point
+└── render.yaml       # Render.com deployment config
+```
+
+## License
+
+MIT
