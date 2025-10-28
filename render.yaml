@@ -33,5 +33,4 @@ services:
 databases:
   - name: securechat-db
     databaseName: mingleup
-    databaseUser: securechat
     plan: free
