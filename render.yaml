@@ -23,12 +23,8 @@ services:
     env: node
     buildCommand: npm install && npm run build
     startCommand: npx serve -s dist -l 10000
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          type: web
-          name: securechat-backend
-          property: host
+    # Note: Set VITE_API_URL manually in Render dashboard after backend is deployed
+    # Format: https://securechat-backend.onrender.com
 
 databases:
   - name: securechat-db

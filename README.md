@@ -93,8 +93,35 @@ Notes:
 
 ## Deployment
 
+### Deploy to Railway (Recommended) 🚂
+
+**👋 First time deploying?** Check out the **[Railway Deployment Guide](./RAILWAY_DEPLOYMENT_GUIDE.md)** - it's a step-by-step walkthrough perfect for beginners!
+
+**Why Railway?**
+- ✅ Simple, intuitive interface
+- ✅ Free tier with $5 credit/month
+- ✅ One-click MongoDB setup
+- ✅ Automatic SSL certificates
+- ✅ Great for beginners
+
+**Quick steps:**
+1. Push your code to GitHub
+2. Sign up at [railway.app](https://railway.app)
+3. Create new project → Deploy from GitHub
+4. Add MongoDB database
+5. Deploy backend and frontend as separate services
+6. Set environment variables
+
+**Documentation:**
+- **[RAILWAY_DEPLOYMENT_GUIDE.md](./RAILWAY_DEPLOYMENT_GUIDE.md)** - Complete Railway guide ⭐ **Start here!**
+
+---
+
 ### Deploy to Render.com
 
+**Alternative option:** Check out the **[Render Deployment Guide](./DEPLOYMENT_GUIDE.md)** for Render.com deployment.
+
+**Quick steps:**
 1. Push your code to GitHub
 2. Connect your repository to Render
 3. Use the provided `render.yaml` for automatic setup:
@@ -102,7 +129,9 @@ Notes:
    - Frontend static site
    - Automatic environment variable configuration
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
+**Documentation:**
+- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Render deployment guide
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Technical reference guide
 
 ### Environment Variables
 

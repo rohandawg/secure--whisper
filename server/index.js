@@ -22,7 +22,8 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const JWT_SECRET = process.env.JWT_SECRET || "dev_jwt_secret";
 // ENCRYPTION_KEY must be 32 bytes for AES-256
 const ENCRYPTION_KEY = (process.env.ENCRYPTION_KEY || "dev_key_32_bytes_long_for_demo!!").padEnd(32).slice(0,32);
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/mingleup";
+// Support multiple MongoDB URI environment variable names (Railway uses MONGO_URL, Render uses MONGODB_URI)
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URL || process.env.DATABASE_URL || "mongodb://localhost:27017/mingleup";
 
 function encrypt(text) {
   const iv = randomBytes(12); // 96-bit for GCM
